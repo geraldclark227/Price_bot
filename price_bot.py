@@ -1,74 +1,126 @@
-import pandas as pd
 import re
-from selenium import webdriver
+import emoji
+from selenium import webdriver as wd
 from selenium.webdriver.common.by import By
+#from selenium.webdriver.support.ui import WebDriverWait
+#from selenium.webdriver.support import expected_conditions as EC
+#from selenium.common.exceptions import TimeoutException
+#from selenium.webdriver.chrome.options import Options
+import pandas as pd
 from bs4 import BeautifulSoup
 
-# Ask the user for input
-year = input("Enter year: ")
-card_set = input("Enter card set: ")
-character = input("Choose character: ")
-my_search = f"{year} {card_set} {character}"
-print(my_search)
-
-# Initialize the web driver
-wd = webdriver.Chrome()
-
-# Set an implicit wait time for the web driver
+wd = wd.Chrome()
+wd.get("http://www.amazon.com")
 wd.implicitly_wait(10)
 
-# Navigate to Amazon.com
-wd.get("https://www.amazon.com/")
+#__zip code for locality of order__
+#wd.find_element(By.ID,"nav-global-location-popover-link").click()
+#postcode_field = wd.find_element(By.ID,"GLUXZipUpdateInput")
+#postcode_field.send_keys("91423")
+#wd.find_element(By.ID,"GLUXZipUpdate").click() 
+#close_element = wd.find_element(By.CSS_SELECTOR, "button.a-button-text")
+#close_element.click()
+#wd.implicitly_wait(10)
 
-# Set the location to search results
-wd.find_element(By.ID, "nav-global-location-popover-link").click()
-postcode_field = wd.find_element(By.ID, "GLUXZipUpdateInput")
-postcode_field.send_keys("91423")
-wd.find_element(By.ID, "GLUXZipUpdate").click()
-close_element = wd.find_element(By.CSS_SELECTOR, "button.a-button-text")
-close_element.click()
+year1 = input("Enter year:\n")
+year1 = str(year1)
 
-# Search for the input
-search_field = wd.find_element(By.NAME, "field-keywords")
-search_field.send_keys(my_search)
+card_set1 = input("card set:\n")
+card_set1 = str(card_set1)
+
+character1 = input("Choose character:\n")
+character1 = str(character1)
+my_search = f"{year1} {card_set1} {character1}"
+ 
+search_field = wd.find_element(By.ID, "twotabsearchtextbox").send_keys(my_search)
 search_button_click = wd.find_element(By.ID, "nav-search-submit-button")
 search_button_click.click()
+wd.implicitly_wait(10)
 
-# Extract the search results with BeautifulSoup
-soup = BeautifulSoup(wd.page_source, "html.parser")
-web_page = soup.findAll("div", {"data-component-type": "s-search-result"})
+soup = BeautifulSoup(wd.page_source, 'html.parser')
+web_page = soup.findAll("div",{"data-component-type": "s-search-result"})
 
-# Create a list to store the search results
-results_list = []
+row=""
+result_list_1=[]
 
-# Loop through the search results and extract the relevant data
 for result in web_page:
     title = result.find("span", {"class": "a-size-base-plus a-color-base a-text-normal"})
-    price = result.find("span", {"class": "a-offscreen"})
-    url = result.find("a", {"class": "a-link-normal s-no-outline"})
-    character_match = result.find("span", text=re.compile(character, re.IGNORECASE))
-    if title and price and url and character_match:
-        title_text = title.text.strip()
-        price_text = price.text.strip()
-        url_text = "https://www.amazon.com" + url["href"]
-        character_text = character_match.text.strip()
-        print(f"{title_text} - {price_text} - {url_text} - {character_text}")
-        results_list.append({"Title": title_text, "Price": price_text, "URL": url_text, "Character": character_text})
+    price = result.find("span", {"class": "a-offscreen"}) 
+    url = result.find("a", {"class", "a-link-normal s-no-outline"})
+    if title and price and url:
+        row = [title.text, 
+               price.text.replace("$","").replace(",",""), 
+               "https://amazon.com/" + url['href']]            
+    result_list_1.append(row)
+# Dataframe Amazon
+df_a = pd.DataFrame.from_records(result_list_1, columns=["Title", "Price", "URL"])
+df_a["Title"] = df_a["Title"].str.strip()
+#df_a["Price"] = df_a["Price"].astype(float)
+df_a_f1 = df_a[df_a["Title"].str.match(year1) 
+    & df_a["Title"].str.contains(card_set1, case=False) 
+    & df_a["Title"].str.contains(character1, case=False)]
+df_a_f2 = df_a_f1.drop_duplicates(keep="first")
+#df_a_f3 = df_a_f2.sort_values(by="Price", ascending=False)
+print(df_a_f2)
 
-# Close the web driver
+# get ebay.com from webdriver
+wd.get("https://www.ebay.com/")
+wd.implicitly_wait(10)
+
+search_field_ebay = wd.find_element(By.ID, "gh-ac").send_keys(my_search)
+search_button_ebay_click = wd.find_element(By.ID, "gh-btn")
+search_button_ebay_click.click()
+wd.implicitly_wait(10)
+
+soup_ebay = BeautifulSoup(wd.page_source, 'html.parser')
+web_page_ebay = soup_ebay.findAll("li",{"class": "s-item s-item__pl-on-bottom"})
+
+row_ebay=""
+result_list_2=[]
+
+for result2 in web_page_ebay:
+    title_ebay = result2.find("span",{"role": "heading"})
+    price_ebay = result2.find("span",{"class": "s-item__price"})
+    #seller_rating = result2.find("span", {"class": "s-item__seller-info-text"})
+    url_ebay = result2.find("a", {"class": "s-item__link"})
+    if title_ebay and price_ebay and url_ebay:
+        row_ebay = [title_ebay.text.replace("🔥", "").replace("'",""),
+                    price_ebay.text.replace("$","").replace(",",""),
+                    url_ebay['href']]
+    result_list_2.append(row_ebay)
+
+# Dataframe Ebay
+df_eb = pd.DataFrame.from_records(result_list_2, columns=["Title", "Price", "URL"])
+df_eb["Title"] = df_eb["Title"].str.strip()
+df_eb2 = df_eb[~df_eb["Price"].str.contains("to", case=False)]
+#df_eb2["Price"] = df_eb2["Price"].astype(float)
+df_eb_f1 = df_eb2[df_eb2["Title"].str.contains(year1) 
+    & df_eb2["Title"].str.contains(card_set1, case=False) 
+    & df_eb2["Title"].str.contains(character1, case=False)]
+df_eb_f2 = df_eb_f1.drop_duplicates(keep="first")
+#df_eb_f3 = df_eb_f2.sort_values(by="Price", ascending=False)
+print(df_eb_f2)
+
 wd.quit()
 
-# Convert the search results to a pandas DataFrame
-df = pd.DataFrame(results_list)
+df_results_all = pd.concat([df_a_f2, df_eb_f2], axis=0)
+df_results_all["Price"] = df_results_all["Price"].astype(float)
+df_results_all1 = df_results_all.sort_values(by="Price", ascending=False)
+df_results_all1.to_csv("marvel_cards.csv", index=False)
+df_results_all1.to_excel("marvel_cards.xlsx")
+print(df_results_all1)
 
-# Drop rows without a price
-df = df.dropna(subset=["Price"])
-
-# Save the search results to a CSV file
-df.to_csv("marvel_cards.csv", index=False)
-
-
-
-
-
+# __NOTES__You must install-->
+# pip install openpyxl
+# pip install importlib_metadata
+# pip install chromedriver-py==110.0.5481.77
+# pip install selenium
+# uninstall chromedriver from mac, "brew uninstall --cask chromedriver"
+# pip install beautifulsoup4
+# install Tkinter, "pip install tk"
+# Marvel Masterpieces
+#_
+#__Other Notes__
+#df_filtered1 = df_all_results[~df_all_results["Title"].str.contains("Set|Complete|Gift|Box|Comic|Pack|Figure|T-Shirt|Lego|Tin|NCAA|Football|Basketball", case=False)]
+#df_filtered3 = df_filtered2[df_filtered2['Title'].str.contains("PSA|BGS|CGS", case=False)]
 
